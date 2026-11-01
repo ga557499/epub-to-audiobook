@@ -1,3 +1,10 @@
 .DS_Store
-
+.venv/
+__pycache__/
+*.pyc
+.env
+gemini_voices.json
+voice_previews/
+output/
+output_audiobook/
 ebooks/
