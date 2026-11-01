@@ -548,6 +548,9 @@ def synthesize_segment(
     if existing_dur > 0:
         return existing_dur
 
+    if callable(client):
+        client = client()
+
     audio_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = audio_path.with_suffix(".tmp.wav")
     last_err = None
@@ -626,6 +629,15 @@ def find_tool(name: str) -> str | None:
     for p in common_mac_paths:
         if Path(p).is_file() and os.access(p, os.X_OK):
             return p
+    if name == "ffmpeg":
+        try:
+            import imageio_ffmpeg
+
+            exe = imageio_ffmpeg.get_ffmpeg_exe()
+            if exe and Path(exe).is_file():
+                return exe
+        except Exception:
+            pass
     return None
 
 
@@ -689,7 +701,7 @@ def package_m4b(
     if not ffmpeg:
         print("\n[注意] 找不到 ffmpeg 工具，略過 M4B 打包步驟。")
         print("  所有 WAV 段落已妥善保存在：", output_dir / "segments")
-        print("  若需打包成 M4B，請先安裝 ffmpeg (例如：brew install ffmpeg) 後再次執行。")
+        print("  若需打包成 M4B，請先安裝 ffmpeg (例如：pip install imageio-ffmpeg 或 brew install ffmpeg) 後再次執行。")
         return final_m4b_path
 
     filelist = output_dir / f"{final_m4b_path.stem}_filelist.txt"
@@ -773,6 +785,8 @@ def package_m4b(
         [
             "-map_metadata",
             "1",
+            "-map_chapters",
+            "1",
             "-c:a",
             "copy",
             str(final_m4b_path),
@@ -825,18 +839,22 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    # If dry-run, we don't need client or API key
-    client = None
-    if not args.dry_run:
-        api_key = resolve_api_key(args.api_key)
-        client = get_genai_client(api_key)
+    # Lazily initialize API client so dry-run or repackaging already-synthesized WAVs works without API key
+    _client = None
+
+    def ensure_client():
+        nonlocal _client
+        if _client is None:
+            api_key = resolve_api_key(args.api_key)
+            _client = get_genai_client(api_key)
+        return _client
 
     if args.design_voice:
         if args.dry_run:
             print("[Dry Run] --design-voice 乾跑模式：不會呼叫 API 建立自訂聲線。")
         else:
             design_voice(
-                client=client,
+                client=ensure_client(),
                 preset=args.preset,
                 model=args.model,
                 voice_store_path=args.voice_store,
@@ -958,7 +976,7 @@ def main() -> int:
                 seg_path.unlink(missing_ok=True)
 
             dur = synthesize_segment(
-                client=client,
+                client=ensure_client,
                 model=args.model,
                 text=chunk,
                 voice=voice,

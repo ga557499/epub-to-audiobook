@@ -4,15 +4,18 @@ import unittest
 from pathlib import Path
 from bs4 import BeautifulSoup
 
+import wave
 from epub_to_m4b_gemini import (
     clean_text,
     extract_chapters,
+    find_tool,
     load_voice_store,
     parse_chapters_arg,
     remove_note_references,
     resolve_voice_and_style,
     save_voice_store,
     split_text,
+    synthesize_segment,
     wav_duration,
 )
 
@@ -111,6 +114,33 @@ class TestEpubToM4bGemini(unittest.TestCase):
             f.flush()
             dur = wav_duration(Path(f.name))
             self.assertEqual(dur, 0.0)
+
+    def test_lazy_client_skips_api_when_wav_exists(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            wav_path = Path(tmpdir) / "seg.wav"
+            with wave.open(str(wav_path), "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(24000)
+                wf.writeframes(b"\x00\x00" * 24000)
+
+            def fail_if_called():
+                raise AssertionError("Client getter should not be called when WAV already exists")
+
+            dur = synthesize_segment(
+                client=fail_if_called,
+                model="gemini-3.8-flash-tts",
+                text="測試",
+                voice="Sulafat",
+                style="",
+                audio_path=wav_path,
+            )
+            self.assertAlmostEqual(dur, 1.0, places=2)
+
+    def test_find_tool_ffmpeg(self):
+        ffmpeg_path = find_tool("ffmpeg")
+        self.assertIsNotNone(ffmpeg_path)
+        self.assertTrue(Path(ffmpeg_path).is_file())
 
 
 if __name__ == "__main__":

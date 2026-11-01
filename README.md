@@ -19,8 +19,8 @@
 
 1. **安裝依賴**：
    ```bash
-   pip install -U "google-genai>=2.30.1" ebooklib beautifulsoup4
-   # 需要 ffmpeg (例如: brew install ffmpeg)
+   pip install -U "google-genai>=2.30.1" ebooklib beautifulsoup4 imageio-ffmpeg
+   # 內建支援自動偵測 imageio-ffmpeg 或系統 ffmpeg (如 brew install ffmpeg)
    ```
 
 2. **設定 API 金鑰**：
