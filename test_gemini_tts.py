@@ -142,6 +142,11 @@ class TestEpubToM4bGemini(unittest.TestCase):
         self.assertIsNotNone(ffmpeg_path)
         self.assertTrue(Path(ffmpeg_path).is_file())
 
+    def test_get_genai_client(self):
+        from epub_to_m4b_gemini import get_genai_client
+        client = get_genai_client(api_key="test_dummy_key")
+        self.assertIsNotNone(client)
+
 
 if __name__ == "__main__":
     unittest.main()

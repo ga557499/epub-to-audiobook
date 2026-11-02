@@ -548,9 +548,6 @@ def synthesize_segment(
     if existing_dur > 0:
         return existing_dur
 
-    if callable(client):
-        client = client()
-
     audio_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = audio_path.with_suffix(".tmp.wav")
     last_err = None
@@ -569,7 +566,8 @@ def synthesize_segment(
 
     for attempt in range(1, retries + 2):
         try:
-            interaction = client.interactions.create(
+            active_client = client() if callable(client) else client
+            interaction = active_client.interactions.create(
                 model=model,
                 store=False,
                 input=[
@@ -584,6 +582,7 @@ def synthesize_segment(
                         {"voice": voice},
                     ],
                 },
+                timeout=120.0,
             )
 
             if not getattr(interaction, "output_audio", None) or not interaction.output_audio.data:
@@ -613,6 +612,11 @@ def synthesize_segment(
                     print(f"    [429 限速] 等待 {wait_s:.1f} 秒後重試段落...", flush=True)
                 else:
                     print(f"    [重試 {attempt}/{retries}] 合成失敗 ({exc})，{wait_s:.1f} 秒後重試...", flush=True)
+                if callable(client):
+                    try:
+                        client(refresh=True)
+                    except TypeError:
+                        pass
                 time.sleep(wait_s)
 
     raise RuntimeError(f"段落合成失敗 ({retries + 1} 次重試後): {last_err}") from last_err
@@ -842,9 +846,9 @@ def main() -> int:
     # Lazily initialize API client so dry-run or repackaging already-synthesized WAVs works without API key
     _client = None
 
-    def ensure_client():
+    def ensure_client(refresh: bool = False):
         nonlocal _client
-        if _client is None:
+        if _client is None or refresh:
             api_key = resolve_api_key(args.api_key)
             _client = get_genai_client(api_key)
         return _client
